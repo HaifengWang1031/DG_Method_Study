@@ -20,7 +20,21 @@ K = 32 # element number
 xNode,step =np.linspace(0,1,K+1,retstep=True)
 
 xh = np.vstack([xNode[0:-1],xNode[1:]]).T
-u0 = lambda x:np.sin(tau*x)
+
+def multi_wave(x):
+    if 0.1 < x <=0.2:
+        return 10*(x-0.1)
+    elif 0.2 < x <= 0.3:
+        return 10*(0.3-x)
+    elif 0.4< x <=0.6:
+        return 1
+    elif 0.8< x <=0.9:
+        return 100*(x-0.8)*(0.9-x)
+    else:
+        return 0
+
+# u0 = lambda x:np.sin(tau*x)
+u0 = multi_wave
 
 
 # 1. calculate initial basis weight 
@@ -78,6 +92,6 @@ for t in range(0,len(saved_u),10):
     im = plt.plot(xh.T,saved_u[t].T)
     ims.append(im)
 
-ani = animation.ArtistAnimation(fig, ims, interval=1, repeat_delay=1000)
+ani = animation.ArtistAnimation(fig, ims, interval=10, repeat_delay=1000)
 # ani.save("test.gif",writer='pillow')
 plt.show()
