@@ -19,7 +19,7 @@ class CL_Solver:
         self.flux_type = flux_type
 
         self.N = basis_order
-        self.basis,self.Dbasis = baseline_basis(self.N)
+        self.basis,self.Dbasis = legendre_basis(self.N)
 
         self.space_interval = space_interval
         self.K = ele_num
@@ -55,9 +55,9 @@ class CL_Solver:
             phi_l = np.array([basis(-1) for basis in self.basis]).reshape((-1,1))
             phi_r = np.array([basis(1) for basis in self.basis]).reshape(-1,1)
 
-            num_flux =c*np.concatenate((f_r*phi_l,f_r*phi_r,np.zeros((self.N,self.N))),axis = 1) \
+            num_flux =c*np.concatenate((f_r*phi_l,-f_r*phi_r,np.zeros((self.N,self.N))),axis = 1) \
                 if c>=0 \
-                else c*np.concatenate((np.zeros((self.N,self.N)),f_l*phi_l,f_l*phi_r),axis = 1)
+                else c*np.concatenate((np.zeros((self.N,self.N)),f_l*phi_l,-f_l*phi_r),axis = 1)
 
             RHS_integar = np.empty((self.N,self.N))
             for n1 in range(self.N):
@@ -66,10 +66,7 @@ class CL_Solver:
                     RHS_integar[n1][n2] = integrate.quad(lambda x:self.Dbasis[n1](x)*self.basis[n2](x),-1,1)[0]
             RHS_integar = np.concatenate((np.zeros((self.N,self.N)),RHS_integar,np.zeros((self.N,self.N))),axis = 1)
 
-            Stencil = np.linalg.solve(self.mass_matrix,(RHS_integar+num_flux)/(self.delta_x[0]/2))
-
-            print(RHS_integar)
-            print(Stencil)
+            Stencil = np.linalg.solve(self.mass_matrix,(RHS_integar+num_flux))
 
         #step 2: Assemble semi-discrete system and apply periodic BC
 
@@ -124,14 +121,24 @@ class CL_Solver:
             plt.plot(x_e,result_local)
 
 
-solver = CL_Solver(1,2,ele_num = 20)
-print(solver.mass_matrix)
+solver = CL_Solver(1,2,ele_num = 62)
 
+def multi_wave(x):
+    if 0.1 < x <=0.2:
+        return 10*(x-0.1)
+    elif 0.2 < x <= 0.3:
+        return 10*(0.3-x)
+    elif 0.4< x <=0.6:
+        return 1
+    elif 0.8< x <=0.9:
+        return 100*(x-0.8)*(0.9-x)
+    else:
+        return 0
 plt.ion()
 solver.reset(lambda x:np.sin(2*np.pi*x))
-for _ in range(10):
+for _ in range(1000):
     solver.draw_step(solver.BasisWeights)
     solver.step(0.001)
-    plt.pause(1)
+    plt.pause(0.001)
     plt.clf()
 plt.ioff()

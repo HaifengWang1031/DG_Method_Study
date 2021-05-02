@@ -62,10 +62,6 @@ for i in range(0,N*K-N,N):
     SemiMatrix[i:i+N,i:i+N+1] = Stencil
 SemiMatrix = np.roll(SemiMatrix,-1,axis=1) #apply periodic BC
 SemiMatrix[-N:,-N-1:] = Stencil
-
-print(RHSIntegrals)
-print(Stencil)
-print(MassMatrix)
 print(SemiMatrix)
 
 # 3. Time Discretization
