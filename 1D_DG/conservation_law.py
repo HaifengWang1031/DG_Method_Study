@@ -63,7 +63,7 @@ class CL_Solver:
             for n1 in range(self.N):
                 for n2 in range(self.N):
                     # TODO
-                    RHS_integar[n1][n2] = integrate.quad(lambda x:self.Dbasis[n1](x)*self.basis[n2](x),-1,1)[0]
+                    RHS_integar[n1][n2] = c*integrate.quad(lambda x:self.Dbasis[n1](x)*self.basis[n2](x),-1,1)[0]
             RHS_integar = np.concatenate((np.zeros((self.N,self.N)),RHS_integar,np.zeros((self.N,self.N))),axis = 1)
 
             Stencil = np.linalg.solve(self.mass_matrix,(RHS_integar+num_flux))
@@ -75,6 +75,7 @@ class CL_Solver:
             for e,i in enumerate(range(0,self.N*self.K,self.N)):
                 SemiMatrix[i:i+self.N,i:i+3*self.N] = Stencil/(self.delta_x[e]/2)
 
+            # Apply periodic BC
             SemiMatrix[:,-2*self.N:-self.N]+= SemiMatrix[:,:self.N]
             SemiMatrix[:,self.N:2*self.N] += SemiMatrix[:,-self.N:]
             SemiMatrix = SemiMatrix[:,self.N:-self.N]
@@ -110,8 +111,6 @@ class CL_Solver:
         self.BasisWeights = 1/3*self.BasisWeights + 2/3*(w2 +np.matmul(self.SemiMatrix,w2)*delta_t)
         self.WeightContainer =  np.concatenate((self.WeightContainer,self.BasisWeights),axis=1)
 
-        
-
     def draw_step(self,weight):
         for e,i in enumerate(range(0,len(weight),self.N)):
             x_e = np.linspace(self.x_h[e][0],self.x_h[e][1])
@@ -134,6 +133,7 @@ def multi_wave(x):
         return 100*(x-0.8)*(0.9-x)
     else:
         return 0
+
 plt.ion()
 solver.reset(lambda x:np.sin(2*np.pi*x))
 for _ in range(1000):
