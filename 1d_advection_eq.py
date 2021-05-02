@@ -63,6 +63,11 @@ for i in range(0,N*K-N,N):
 SemiMatrix = np.roll(SemiMatrix,-1,axis=1) #apply periodic BC
 SemiMatrix[-N:,-N-1:] = Stencil
 
+print(RHSIntegrals)
+print(Stencil)
+print(MassMatrix)
+print(SemiMatrix)
+
 # 3. Time Discretization
 delta_T = 0.001
 final_T = 3
@@ -92,6 +97,6 @@ for t in range(0,len(saved_u),10):
     im = plt.plot(xh.T,saved_u[t].T)
     ims.append(im)
 
-ani = animation.ArtistAnimation(fig, ims, interval=10, repeat_delay=1000)
+# ani = animation.ArtistAnimation(fig, ims, interval=10, repeat_delay=1000)
 # ani.save("test.gif",writer='pillow')
-plt.show()
+# plt.show()

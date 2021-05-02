@@ -19,7 +19,7 @@ class CL_Solver:
         self.flux_type = flux_type
 
         self.N = basis_order
-        self.basis,self.Dbasis = legendre_basis(self.N)
+        self.basis,self.Dbasis = baseline_basis(self.N)
 
         self.space_interval = space_interval
         self.K = ele_num
@@ -28,6 +28,7 @@ class CL_Solver:
         self.x_h = np.vstack([self.x_node[0:-1],self.x_node[1:]]).T
 
         self.Mass_Matrix()
+        self.RHS_operator()
 
         self.final_T = final_T
 
@@ -65,8 +66,10 @@ class CL_Solver:
                     RHS_integar[n1][n2] = integrate.quad(lambda x:self.Dbasis[n1](x)*self.basis[n2](x),-1,1)[0]
             RHS_integar = np.concatenate((np.zeros((self.N,self.N)),RHS_integar,np.zeros((self.N,self.N))),axis = 1)
 
-            Stencil = np.linalg.solve(self.mass_matrix,RHS_integar+num_flux)
+            Stencil = np.linalg.solve(self.mass_matrix,(RHS_integar+num_flux)/(self.delta_x[0]/2))
 
+            print(RHS_integar)
+            print(Stencil)
 
         #step 2: Assemble semi-discrete system and apply periodic BC
 
@@ -101,26 +104,34 @@ class CL_Solver:
         BasisWeights = np.linalg.solve(self.mass_matrix,ExactRHS)
         BasisWeights = np.reshape(BasisWeights,(self.N*self.K,1),order="F")
         self.BasisWeights = BasisWeights
+        self.WeightContainer = self.BasisWeights
 
     def step(self,delta_t):
 
-        pass
+        w1 = self.BasisWeights + np.matmul(self.SemiMatrix,self.BasisWeights)*delta_t
+        w2 = 3/4*self.BasisWeights + 1/4*(w1 + np.matmul(self.SemiMatrix,w1)*delta_t)
+        self.BasisWeights = 1/3*self.BasisWeights + 2/3*(w2 +np.matmul(self.SemiMatrix,w2)*delta_t)
+        self.WeightContainer =  np.concatenate((self.WeightContainer,self.BasisWeights),axis=1)
+
+        
 
     def draw_step(self,weight):
-        fig = plt.figure()
         for e,i in enumerate(range(0,len(weight),self.N)):
             x_e = np.linspace(self.x_h[e][0],self.x_h[e][1])
             result_local = np.zeros_like(x_e)
             for j in range(self.N):
                 result_local += weight[i+j]*self.basis[j]((2*x_e - (self.x_h[e][0]+self.x_h[e][1]))/self.delta_x[e])
             plt.plot(x_e,result_local)
-        plt.show()
 
 
+solver = CL_Solver(1,2,ele_num = 20)
+print(solver.mass_matrix)
 
-
-
-solver = CL_Solver(1,5,ele_num = 20)
+plt.ion()
 solver.reset(lambda x:np.sin(2*np.pi*x))
-solver.draw_step(solver.BasisWeights)
-
+for _ in range(10):
+    solver.draw_step(solver.BasisWeights)
+    solver.step(0.001)
+    plt.pause(1)
+    plt.clf()
+plt.ioff()
