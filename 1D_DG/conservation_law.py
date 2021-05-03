@@ -15,7 +15,7 @@ class CL_Solver:
     2) Burgers f(u) = u^2/2
     3) Buckley-Leverett f(u) = u^2/(u^2+0.5*(1-u)^2)
     """
-    def __init__(self,flux_type,basis_order=2,space_interval=[0,1],ele_num = 32,final_T=2):
+    def __init__(self,flux_type = 1,basis_order=2,space_interval=[0,1],ele_num = 32):
         self.flux_type = flux_type
 
         self.N = basis_order
@@ -30,7 +30,6 @@ class CL_Solver:
         self.Mass_Matrix()
         self.RHS_operator()
 
-        self.final_T = final_T
 
     def Mass_Matrix(self):
         """
@@ -45,11 +44,11 @@ class CL_Solver:
         """
         RHS_operator = mass_matrix\(RHS_integar + number_flux)
         """
+        #here we use Lax-Friedrichs flux:f(u-,u+) = 1/2(f(u-)-f(u+)-\alpha(u+ - u-))
 
         #step 1: compute the local stencil
-        #here we use Lax-Friedrichs flux:f(u-,u+) = 1/2(f(u-)-f(u+)-\alpha(u+ - u-))
         if self.flux_type == 1:
-            c = 1 # velocity number
+            c = 1 # set velocity number
             f_l =np.array([basis(-1) for basis in self.basis]).reshape((1,-1))
             f_r = np.array([basis(1) for basis in self.basis]).reshape((1,-1))
             phi_l = np.array([basis(-1) for basis in self.basis]).reshape((-1,1))
@@ -62,7 +61,6 @@ class CL_Solver:
             RHS_integar = np.empty((self.N,self.N))
             for n1 in range(self.N):
                 for n2 in range(self.N):
-                    # TODO
                     RHS_integar[n1][n2] = c*integrate.quad(lambda x:self.Dbasis[n1](x)*self.basis[n2](x),-1,1)[0]
             RHS_integar = np.concatenate((np.zeros((self.N,self.N)),RHS_integar,np.zeros((self.N,self.N))),axis = 1)
 
@@ -89,8 +87,15 @@ class CL_Solver:
         self.SemiMatrix = SemiMatrix
 
 
-    def Limiter(self):
-        pass
+    def Limiter(self,BasisWeights):
+        local_weight = np.reshape(BasisWeights,(self.K,self.N))
+        #TODO
+        #step 1. detection of trouble-cells
+
+        #step 2. use a suitable limiter to reconstructing the polynomial solution
+
+        ReconstructedWeight = local_weight.reshape(-1,1)
+        return ReconstructedWeight
 
     def reset(self,init_func):
         ExactRHS = np.zeros((self.N,self.K))
@@ -105,40 +110,46 @@ class CL_Solver:
         self.WeightContainer = self.BasisWeights
 
     def step(self,delta_t):
-
+        # TDV-RK3 method
         w1 = self.BasisWeights + np.matmul(self.SemiMatrix,self.BasisWeights)*delta_t
         w2 = 3/4*self.BasisWeights + 1/4*(w1 + np.matmul(self.SemiMatrix,w1)*delta_t)
         self.BasisWeights = 1/3*self.BasisWeights + 2/3*(w2 +np.matmul(self.SemiMatrix,w2)*delta_t)
+        self.BasisWeights = self.Limiter(self.BasisWeights)
         self.WeightContainer =  np.concatenate((self.WeightContainer,self.BasisWeights),axis=1)
 
-    def draw_step(self,weight):
-        for e,i in enumerate(range(0,len(weight),self.N)):
+    def draw_step(self,weights):
+        for e,i in enumerate(range(0,len(weights),self.N)):
             x_e = np.linspace(self.x_h[e][0],self.x_h[e][1])
             result_local = np.zeros_like(x_e)
             for j in range(self.N):
-                result_local += weight[i+j]*self.basis[j]((2*x_e - (self.x_h[e][0]+self.x_h[e][1]))/self.delta_x[e])
+                result_local += weights[i+j]*self.basis[j]((2*x_e - (self.x_h[e][0]+self.x_h[e][1]))/self.delta_x[e])
             plt.plot(x_e,result_local)
 
-
-solver = CL_Solver(1,2,ele_num = 62)
+# initial wave for Linear advection equation
+def sine_wave(x):
+    return np.sin(10*np.pi*x)
 
 def multi_wave(x):
-    if 0.1 < x <=0.2:
-        return 10*(x-0.1)
-    elif 0.2 < x <= 0.3:
-        return 10*(0.3-x)
-    elif 0.4< x <=0.6:
+    if 0.2 < x <=0.3:
+        return 10*(x-0.2)
+    elif 0.3 < x <= 0.4:
+        return 10*(0.4-x)
+    elif 0.6< x <=0.8:
         return 1
-    elif 0.8< x <=0.9:
-        return 100*(x-0.8)*(0.9-x)
+    elif 1< x <=1.2:
+        return 100*(x-1)*(1.2-x)
     else:
         return 0
 
-plt.ion()
-solver.reset(lambda x:np.sin(2*np.pi*x))
-for _ in range(1000):
-    solver.draw_step(solver.BasisWeights)
-    solver.step(0.001)
-    plt.pause(0.001)
-    plt.clf()
-plt.ioff()
+if __name__ == "__main__":
+
+    solver = CL_Solver(flux_type = 1,basis_order=2,space_interval=[0,1.4],ele_num = 100)
+
+    plt.ion()
+    solver.reset(multi_wave)
+    for _ in range(1400):
+        solver.draw_step(solver.BasisWeights)
+        solver.step(0.001)
+        plt.pause(0.001)
+        plt.clf()
+    plt.ioff()
