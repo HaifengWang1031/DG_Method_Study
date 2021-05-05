@@ -2,6 +2,7 @@ import numpy as np
 import scipy.integrate as integrate
 from utils import *
 import matplotlib.pyplot as plt
+import copy
 
 
 class CL_Solver:
@@ -28,7 +29,7 @@ class CL_Solver:
         self.x_h = np.vstack([self.x_node[0:-1],self.x_node[1:]]).T
 
         self.Mass_Matrix()
-        self.RHS_operator()
+        self.operator = self.RHS_operator()
 
 
     def Mass_Matrix(self):
@@ -77,9 +78,20 @@ class CL_Solver:
             SemiMatrix[:,-2*self.N:-self.N]+= SemiMatrix[:,:self.N]
             SemiMatrix[:,self.N:2*self.N] += SemiMatrix[:,-self.N:]
             SemiMatrix = SemiMatrix[:,self.N:-self.N]
+            return lambda basis_weight:np.matmul(SemiMatrix,basis_weight)
 
         elif self.flux_type == 2:
-            pass
+            def operator(weights):
+                weights = np.reshape(weights,(self.K,self.N))
+                local_func = lambda x,i:sum([weights[i][j]*self.basis[i](x) for j in range(self.N)])
+                #TODO
+                #1.numerical flux
+
+                #2.RHS_interger 
+
+                raise
+
+            return operator
         elif self.flux_type == 3:
             pass
         else:
@@ -111,9 +123,9 @@ class CL_Solver:
 
     def step(self,delta_t):
         # TDV-RK3 method
-        w1 = self.BasisWeights + np.matmul(self.SemiMatrix,self.BasisWeights)*delta_t
-        w2 = 3/4*self.BasisWeights + 1/4*(w1 + np.matmul(self.SemiMatrix,w1)*delta_t)
-        self.BasisWeights = 1/3*self.BasisWeights + 2/3*(w2 +np.matmul(self.SemiMatrix,w2)*delta_t)
+        w1 = self.BasisWeights + self.operator(self.BasisWeights)*delta_t
+        w2 = 3/4*self.BasisWeights + 1/4*(w1 + self.operator(w1)*delta_t)
+        self.BasisWeights = 1/3*self.BasisWeights + 2/3*(w2 +self.operator(w2)*delta_t)
         self.BasisWeights = self.Limiter(self.BasisWeights)
         self.WeightContainer =  np.concatenate((self.WeightContainer,self.BasisWeights),axis=1)
 
@@ -143,7 +155,7 @@ def multi_wave(x):
 
 if __name__ == "__main__":
 
-    solver = CL_Solver(flux_type = 1,basis_order=2,space_interval=[0,1.4],ele_num = 100)
+    solver = CL_Solver(flux_type = 1,basis_order=2,space_interval=[0,1.4],ele_num = 10)
 
     plt.ion()
     solver.reset(multi_wave)
