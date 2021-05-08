@@ -49,7 +49,7 @@ class CL_Solver:
 
         #step 1: compute the local stencil
         if self.flux_type == 1:
-            c = -4 # set velocity number
+            c = 1 # set velocity number
             f_l =np.array([basis(-1) for basis in self.basis]).reshape((1,-1))
             f_r = np.array([basis(1) for basis in self.basis]).reshape((1,-1))
             phi_l = np.array([basis(-1) for basis in self.basis]).reshape((-1,1))
@@ -126,15 +126,42 @@ class CL_Solver:
             raise RunTimeError("To be continue!")
         self.SemiMatrix = SemiMatrix
 
-
     def Limiter(self,BasisWeights):
-        local_weight = np.reshape(BasisWeights,(self.K,self.N))
+        weights = np.reshape(BasisWeights,(self.K,self.N))
+        local_func = lambda x,i:sum([weights[i][j]*self.basis[j](x) for j in range(self.N)])
         #TODO
         #step 1. detection of trouble-cells
+            # 1. Calculate five quantities
+        cell_quantites = np.zeros((self.K,5))
+        for i in range(self.K):
+            # cell average values
+            cell_quantites[i,0] = integrate.quad(local_func,-1,1,args = (i,))[0]/2
+        for e in range(self.K):
+            # forward difference
+            cell_quantites[e,1] = cell_quantites[e,0]-cell_quantites[e-1,0]
+            # backward difference
+            cell_quantites[e,2] = cell_quantites[e+1 if e<self.K-1 else 0,0] - cell_quantites[e,0]
 
+            cell_quantites[e,3] = cell_quantites[e,0] - local_func(-1,e)
+            cell_quantites[e,4] = local_func(1,e) - cell_quantites[e,0]
+
+        # modified cell-interface
+        cell_tile = np.zeros((self.K,2))
+        cell_indicator = np.zeros((self.K,1))
+        for e in range(self.K):
+            cell_tile[e,0] = cell_quantites[e,0] + TVB_limiter(cell_quantites[e,3], cell_quantites[e,1], cell_quantites[e,2],self.delta_x[e],10)
+            cell_tile[e,1] = cell_quantites[e,0] - TVB_limiter(cell_quantites[e,4], cell_quantites[e,1], cell_quantites[e,2],self.delta_x[e],10)
+            if cell_tile[e,0] != local_func(-1,e) or cell_tile[e,1] != local_func(1,e):
+                cell_indicator[e,0] = 1
+                weights[e,:] = 0.
+                weights[e,0] = (cell_tile[e,1] + cell_tile[e,0])/2
+                weights[e,1] = (cell_tile[e,0] - cell_tile[e,1])/2
+        # print(cell_tile)
+        # print(cell_indicator)
+        
         #step 2. use a suitable limiter to reconstructing the polynomial solution
 
-        ReconstructedWeight = local_weight.reshape(-1,1)
+        ReconstructedWeight = weights.reshape(-1,1)
         return ReconstructedWeight
 
     def reset(self,init_func):
@@ -219,11 +246,11 @@ def b_l_initial(x):
 
 if __name__ == "__main__":
 
-    solver = CL_Solver(flux_type = 2,basis_order=2,space_interval=[0,1],ele_num = 100)
+    solver = CL_Solver(flux_type = 1,basis_order=2,space_interval=[0,1],ele_num = 100)
 
     plt.ion()
-    solver.reset(b_l_initial)
-    for _ in range(140):
+    solver.reset(sine_wave)
+    for _ in range(1400):
         solver.draw_step(solver.BasisWeights)
         solver.step(0.001)
         plt.pause(0.001)

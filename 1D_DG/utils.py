@@ -29,3 +29,16 @@ def baseline_basis(deg = 2):
         lambda x:0.5*np.ones_like(x),
     ]
     return basis[:deg],Dbasis[:deg]
+
+
+def minmod_limiter(a,b,c):
+    if np.sign(a) == np.sign(b) == np.sign(c):
+        return np.sign(a)*np.min([np.abs(a),np.abs(b),np.abs(c)])
+    else:
+        return 0
+
+def TVB_limiter(a,b,c,h,M):
+    if np.abs(a) <= M*h**2:
+        return a
+    else:
+        return minmod_limiter(a, b, c)
