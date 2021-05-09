@@ -129,6 +129,7 @@ class CL_Solver:
     def Limiter(self,BasisWeights):
         weights = np.reshape(BasisWeights,(self.K,self.N))
         local_func = lambda x,i:sum([weights[i][j]*self.basis[j](x) for j in range(self.N)])
+        local_Dfunc = lambda x,i:sum([weights[i][j]*self.Dbasis[j](x) for j in range(self.N)])
         #TODO
         #step 1. detection of trouble-cells
             # 1. Calculate five quantities
@@ -151,15 +152,22 @@ class CL_Solver:
         for e in range(self.K):
             cell_tile[e,0] = cell_quantites[e,0] + minmod_limiter(cell_quantites[e,3], cell_quantites[e,1], cell_quantites[e,2])
             cell_tile[e,1] = cell_quantites[e,0] - minmod_limiter(cell_quantites[e,4], cell_quantites[e,1], cell_quantites[e,2])
-            if cell_tile[e,0] != local_func(-1,e) or cell_tile[e,1] != local_func(1,e):
+            if np.abs(cell_tile[e,0]-local_func(-1,e))>5e-4 or np.abs(cell_tile[e,1] - local_func(1,e))>5e-4:
+                print(e,np.abs(cell_tile[e,0]-local_func(-1,e)),np.abs(cell_tile[e,1] - local_func(1,e)))
                 cell_indicator[e,0] = 1
+                #step 2. use a suitable limiter to reconstructing the polynomial solution
                 weights[e,:] = 0.
+                # classic MUSCL reconstruction
+                # slope = minmod_limiter(local_Dfunc(0,e), 
+                #     (cell_quantites[e,0] - cell_quantites[e-1,0])/(self.delta_x[e]/2), 
+                #     (cell_quantites[e+1 if e<self.K-1 else 0,0] - cell_quantites[e,0])/(self.delta_x[e]/2))
+                # weights[e,0] = cell_quantites[e,0] + slope
+                # weights[e,1] = slope
                 weights[e,0] = (cell_tile[e,1] + cell_tile[e,0])/2
                 weights[e,1] = (cell_tile[e,0] - cell_tile[e,1])/2
         # print(cell_tile)
         # print(cell_indicator)
         
-        #step 2. use a suitable limiter to reconstructing the polynomial solution
 
         ReconstructedWeight = weights.reshape(-1,1)
         return ReconstructedWeight
@@ -214,13 +222,13 @@ def multi_wave(x):
 def shock_collision(x):
     # x in [0,1]
     if x<=0.2:
-        return 10*np.ones_like(x)
+        return 5*np.ones_like(x)
     elif 0.2<x<=0.4:
-        return 6*np.ones_like(x)
+        return 2*np.ones_like(x)
     elif 0.4<x<=0.6:
         return 0*np.ones_like(x)
     elif x>0.6:
-        return -4*np.ones_like(x)
+        return -2*np.ones_like(x)
 
 
 def compound_wave(x):
@@ -246,7 +254,7 @@ def b_l_initial(x):
 
 if __name__ == "__main__":
 
-    solver = CL_Solver(flux_type = 3,basis_order=2,space_interval=[0,1.5],ele_num = 100)
+    solver = CL_Solver(flux_type = 3,basis_order=4,space_interval=[0,1],ele_num = 100)
 
     plt.ion()
     solver.reset(b_l_initial)
